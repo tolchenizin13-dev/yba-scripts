@@ -1,58 +1,53 @@
--- Стабильный шаблон создания GUI в Roblox Studio
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+-- Список предметов, которые можно продавать (и их официальные игровые названия)
+local sellableItems = {
+    "Mysterious Arrow",
+    "Rokakaka",
+    "Pure Rokakaka",
+    "Rib Cage of The Saint's Corpse",
+    "Left Arm of The Saint's Corpse",
+    "Green Baby",
+    "Diamond",
+    "Gold Coin",
+    "Ancient Scroll",
+    "DIO's Diary",
+    "Quinton's Glove",
+    "Steel Ball",
+    "Stone Mask",
+    "Zeppelin's Headband"
+}
 
--- Безопасно получаем доступ к контейнеру интерфейса игрока
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 5)
+local player = game:GetService("Players").LocalPlayer
 
-if not PlayerGui then
-    warn("Ошибка: Не удалось дождаться загрузки PlayerGui")
-    return
-end
-
--- Функция создания интерфейса, обернутая в pcall для защиты от вылетов
-local success, err = pcall(function()
-    -- Очищаем старую копию меню, если она была
-    if PlayerGui:FindFirstChild("SafeDeveloperMenu") then
-        PlayerGui.SafeDeveloperMenu:Destroy()
-    end
-
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "SafeDeveloperMenu"
-    ScreenGui.ResetOnSpawn = false
-    ScreenGui.Parent = PlayerGui
-
-    local Frame = Instance.new("Frame")
-    Frame.Size = UDim2.new(0, 260, 0, 120)
-    Frame.Position = UDim2.new(0.5, -130, 0.4, -60)
-    Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-    Frame.BorderSizePixel = 0
-    Frame.Parent = ScreenGui
-
-    local Title = Instance.new("TextLabel")
-    Title.Size = UDim2.new(1, 0, 0, 40)
-    Title.Text = "DEVELOPER GUI (STABLE)"
-    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Title.Font = Enum.Font.SourceSansBold
-    Title.TextSize = 14
-    Title.BackgroundTransparency = 1
-    Title.Parent = Frame
-
-    local Button = Instance.new("TextButton")
-    Button.Size = UDim2.new(0, 220, 0, 45)
-    Button.Position = UDim2.new(0, 20, 0, 50)
-    Button.BackgroundColor3 = Color3.fromRGB(80, 60, 200)
-    Button.Text = "Взаимодействовать"
-    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Button.Font = Enum.Font.SourceSans
-    Button.TextSize = 16
-    Button.Parent = Frame
+-- Функция для моментальной продажи одного предмета через RemoteEvent игры
+local function sellItem(itemName)
+    -- YBA использует событие EndDialogue для завершения сделки с торговцем ShiftPlox
+    local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvent")
     
-    Button.MouseButton1Click:Connect(function()
-        print("Кнопка легального интерфейса успешно нажата!")
-    end)
-end)
-
-if not success then
-    warn("Критическая ошибка при создании GUI: " .. tostring(err))
+    -- Отправляем серверу сигнал на продажу конкретного предмета
+    remote:FireServer("EndDialogue", {
+        ["NPC"] = "ShiftPlox, The Travelling Merchant",
+        ["Option"] = "Sell " .. itemName,
+        ["Dialogue"] = "Dialogue2"
+    })
 end
+
+-- Основной цикл: проверяем инвентарь и продаем все доступные копии
+print("[Auto-Sell] Запуск моментальной продажи предметов...")
+
+for _, itemName in ipairs(sellableItems) do
+    -- Ищем предмет в рюкзаке (Backpack) или прямо в руках персонажа
+    local itemInBackpack = player.Backpack:FindFirstChild(itemName)
+    local itemInCharacter = player.Character:FindFirstChild(itemName)
+    
+    -- Пока у нас есть этот предмет, отправляем запросы на продажу
+    while itemInBackpack or itemInCharacter do
+        sellItem(itemName)
+        task.wait(0.1) -- Небольшая задержка, чтобы сервер YBA не кикнул за слишком частые запросы (Spam Remote)
+        
+        -- Обновляем проверку наличия предмета
+        itemInBackpack = player.Backpack:FindFirstChild(itemName)
+        itemInCharacter = player.Character:FindFirstChild(itemName)
+    end
+end
+
+print("[Auto-Sell] Все возможные предметы успешно проданы!")
