@@ -1,5 +1,5 @@
 -- ==========================================
--- ЮБА ИНСТАНТ СЕЛЛЕР: ОСНОВНОЙ МОДУЛЬ (v1.0)
+-- ЮБА ИНСТАНТ СЕЛЛЕР: ОБНОВЛЕННЫЙ МОДУЛЬ (v1.1)
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -7,28 +7,33 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
--- Список предметов YBA для продажи
 local MerchantItems = {
     ["Mysterious Arrow"] = true, ["Rokakaka"] = true, ["Gold Coin"] = true,
     ["Diamond"] = true, ["Quinton's Glove"] = true, ["Zepelli's Hat"] = true,
     ["Ancient Scroll"] = true, ["Pure Rokakaka"] = true
 }
 
--- Динамический поиск сетевого ивента YBA
+-- ГЛОБАЛЬНЫЙ ПОИСК ИВЕНТА (Сканирует всю память ReplicatedStorage)
 local function GetYbaRemote()
-    local Remote = ReplicatedStorage:FindFirstChild("RemoteEvent") or ReplicatedStorage:FindFirstChild("DialogueTrigger")
-    if not Remote then
-        for _, obj in ipairs(ReplicatedStorage:GetChildren()) do
-            if obj:IsA("RemoteEvent") and (obj.Name:match("Dialogue") or obj.Name:match("Merchant")) then
-                Remote = obj
-                break
+    -- Шаг 1: Проверяем стандартные скрытые папки YBA
+    local mainRemote = ReplicatedStorage:FindFirstChild("RemoteEvent")
+    if mainRemote then return mainRemote end
+    
+    -- Шаг 2: Если переименовали, ищем любой RemoteEvent, у которого в имени есть намёк на диалог или ивенты
+    for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do -- GetDescendants ищет даже внутри подпапок
+        if obj:IsA("RemoteEvent") then
+            local name = obj.Name:lower()
+            if name:match("dialogue") or name:match("merchant") or name:match("sell") or name:match("item") then
+                return obj
             end
         end
     end
-    return Remote
+    
+    -- Шаг 3: Крайний случай. В YBA главный сетевой ивент часто лежит в папке "Modules" или прямо в корне
+    -- Возвращаем самый первый попавшийся RemoteEvent общего назначения, если другие не нашлись
+    return ReplicatedStorage:FindFirstChildOfClass("RemoteEvent")
 end
 
--- Функция оптовой продажи
 local function SellAllItems()
     local Remote = GetYbaRemote()
     if not Remote then return false end
@@ -41,13 +46,17 @@ local function SellAllItems()
         for _, item in ipairs(container:GetChildren()) do
             if item:IsA("Tool") and MerchantItems[item.Name] then
                 pcall(function()
+                    -- Отправка пакета. Если YBA поменяли аргументы (например, вместо "EndDialogue" теперь другое слово),
+                    -- скрипт попытается отправить стандартную структуру
                     Remote:FireServer("EndDialogue", {
                         ["NPC"] = "Merchant",
                         ["Option"] = "Sell " .. item.Name,
                         ["Item"] = item
                     })
+                    -- Дублируем альтернативный вариант аргументов для новых версий YBA
+                    Remote:FireServer("MerchantSpace", "Sell", item.Name)
                 end)
-                task.wait(0.1) -- Безопасный интервал защиты от античита
+                task.wait(0.1)
             end
         end
     end
@@ -57,7 +66,6 @@ local function SellAllItems()
     return true
 end
 
--- Создание полноценного GUI разработчика
 local function CreateUi()
     if CoreGui:FindFirstChild("CustomYbaSeller") then CoreGui.CustomYbaSeller:Destroy() end
 
@@ -70,13 +78,13 @@ local function CreateUi()
     Main.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
     Main.BorderSizePixel = 0
     Main.Active = true
-    Main.Draggable = true -- Перетаскивание меню
+    Main.Draggable = true
 
     Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
 
     local Title = Instance.new("TextLabel", Main)
     Title.Size = UDim2.new(1, 0, 0, 35)
-    Title.Text = "DEVELOPER PROJECT: YBA"
+    Title.Text = "DEVELOPER PROJECT: YBA v1.1"
     Title.TextColor3 = Color3.fromRGB(150, 100, 255)
     Title.Font = Enum.Font.Code
     Title.TextSize = 14
@@ -113,6 +121,5 @@ local function CreateUi()
     end)
 end
 
--- Запуск интерфейса после загрузки
 CreateUi()
-print("[LOG]: Основной скрипт YBA успешно инициализирован.")
+print("[LOG]: Скрипт YBA версии 1.1 успешно запущен.")
